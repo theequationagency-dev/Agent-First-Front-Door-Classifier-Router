@@ -1,0 +1,24 @@
+name = "agent-first-front-door"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[vars]
+# Where human traffic is proxied. Override per-environment below.
+ORIGIN_URL = "https://theequationagencyllc.com"
+
+# Route the Worker in front of the whole zone. Fill in your zone name, then
+# uncomment. Keep the origin on a hostname the Worker does NOT match, or the
+# human pass-through will loop back into this Worker.
+# [[routes]]
+# pattern = "theequationagencyllc.com/*"
+# zone_name = "theequationagencyllc.com"
+
+# D1 binding for the request log and the agent payload source of truth.
+# Create with: wrangler d1 create agent-front-door
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "agent-front-door"
+# database_id = "<id from wrangler d1 create>"
+
+[env.staging.vars]
+ORIGIN_URL = "https://staging.theequationagencyllc.com"
