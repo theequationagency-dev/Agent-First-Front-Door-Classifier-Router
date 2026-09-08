@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/theequationagency-dev/Agent-First-Front-Door-Classifier-Router/security/advisories/new
+    about: Report privately, not as a public issue. See SECURITY.md.
+  - name: Question or idea
+    url: https://github.com/theequationagency-dev/Agent-First-Front-Door-Classifier-Router/discussions
+    about: For anything that is not a bug or a concrete request.

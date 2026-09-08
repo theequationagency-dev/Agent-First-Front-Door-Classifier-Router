@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # The suite runs the real migration and seed SQL over node:sqlite,
+      # so broken SQL fails here too. No network, no Cloudflare account.
+      - name: Test
+        run: npm test
+
+      # Both Workers must bundle. Needs no Cloudflare credentials.
+      - name: Build both Workers
+        run: npm run build:check
+
+  sql:
+    name: Migration applies cleanly
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Applies the migration and the seed to a fresh local D1, the same way
+      # a new adopter does on their first run.
+      - name: Apply migration and seed to a fresh local D1
+        run: |
+          npx wrangler d1 migrations apply agent-front-door --local
+          npx wrangler d1 execute agent-front-door --local --file=seed.sql
+          npx wrangler d1 execute agent-front-door --local \
+            --command="SELECT COUNT(*) AS services FROM services WHERE active = 1"

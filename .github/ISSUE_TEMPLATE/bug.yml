@@ -1,0 +1,42 @@
+name: Bug report
+description: Something behaves differently than documented.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: The curl command or test that shows it, ideally against `npm run dev`.
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Commit or version
+    validations:
+      required: true
+
+  - type: textarea
+    id: incidents
+    attributes:
+      label: Relevant incidents rows
+      description: >
+        If this is a failure on the agent path, the `incidents` table probably
+        caught it. `/admin/classification-report` includes recent ones.
+      render: text

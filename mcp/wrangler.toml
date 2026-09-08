@@ -1,0 +1,28 @@
+# MCP server Worker. Deploy with:
+#   wrangler deploy -c mcp/wrangler.toml
+#   wrangler dev    -c mcp/wrangler.toml --port 8788
+#
+# Bound to the SAME D1 database as the router Worker — that is the whole
+# point: the MCP tools and the /api routes read and write the same rows.
+
+name = "agent-front-door-mcp"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# How the server introduces itself to MCP clients.
+SERVER_NAME = "agent-front-door"
+SITE_NAME = "Example Company"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "agent-front-door"
+database_id = "REPLACE_WITH_ID_FROM_WRANGLER_D1_CREATE"
+migrations_dir = "../migrations"
+
+# Serve it on its own hostname so the router Worker's zone route doesn't
+# swallow it. Fill in and uncomment before the first deploy.
+# [[routes]]
+# pattern = "mcp.example.com/*"
+# zone_name = "example.com"

@@ -1,0 +1,49 @@
+{
+  "name": "agent-front-door",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "One URL, two response bodies: agents get a live structured action payload, humans get your website. A Cloudflare Worker front door with an MCP server over the same data.",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\"",
+    "dev": "wrangler dev --port 8787",
+    "dev:mcp": "wrangler dev -c mcp/wrangler.toml --port 8788 --persist-to .wrangler/state",
+    "build:check": "wrangler deploy --dry-run --outdir .wrangler/build/router && wrangler deploy -c mcp/wrangler.toml --dry-run --outdir .wrangler/build/mcp",
+    "deploy": "wrangler deploy",
+    "deploy:mcp": "wrangler deploy -c mcp/wrangler.toml",
+    "tail": "wrangler tail",
+    "migrate:local": "wrangler d1 migrations apply agent-front-door --local",
+    "migrate": "wrangler d1 migrations apply agent-front-door --remote",
+    "seed:local": "wrangler d1 execute agent-front-door --local --file=seed.sql"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "wrangler": "^4.129.1"
+  },
+  "license": "MIT",
+  "keywords": [
+    "cloudflare-workers",
+    "mcp",
+    "model-context-protocol",
+    "agents",
+    "llms-txt",
+    "ai-crawlers",
+    "d1",
+    "agent-first"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/theequationagency-dev/Agent-First-Front-Door-Classifier-Router.git"
+  },
+  "bugs": {
+    "url": "https://github.com/theequationagency-dev/Agent-First-Front-Door-Classifier-Router/issues"
+  },
+  "homepage": "https://github.com/theequationagency-dev/Agent-First-Front-Door-Classifier-Router#readme"
+}
