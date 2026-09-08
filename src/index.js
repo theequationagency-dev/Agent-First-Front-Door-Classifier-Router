@@ -11,6 +11,7 @@
  *
  * Deploy: wrangler.toml routes this at your zone, e.g. "example.com/*"
  * Origin for humans: the ORIGIN_URL var. D1 lives on the DB binding.
+ * Nothing about your site is hardcoded here — it is all config.
  */
 
 import { classifyRequest } from "./classifier.js";
@@ -19,8 +20,7 @@ import { logClassification, recordIncident } from "./observability.js";
 import { json, appendVary } from "./http.js";
 import { handleApi } from "./routes/api.js";
 import { handleAdmin } from "./routes/admin.js";
-
-const DEFAULT_ORIGIN = "https://theequationagencyllc.com";
+import { handleDiscovery } from "./routes/discovery.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -35,6 +35,11 @@ export default {
     // what the classifier thought of the caller.
     const admin = await handleAdmin(request, env);
     if (admin) return admin;
+
+    // Discovery next: /llms.txt and /.well-known/agent.json answer everyone
+    // the same way, so an agent we misclassified can still ask directly.
+    const discovery = await handleDiscovery(request, env);
+    if (discovery) return discovery;
 
     // Then the advertised API. Open to humans and agents alike — the payload
     // hands these URLs out, so gating them on a UA guess would defeat it.
@@ -65,7 +70,21 @@ export default {
  * Humans get the existing site, untouched apart from a debug header.
  */
 async function passThroughToOrigin(request, env, url) {
-  const originUrl = env.ORIGIN_URL || DEFAULT_ORIGIN;
+  // No default: a fork with no ORIGIN_URL set must not silently proxy
+  // traffic to whatever site happened to be in the template.
+  const originUrl = env.ORIGIN_URL;
+  if (!originUrl) {
+    await recordIncident(env, {
+      path: url.pathname,
+      kind: "other",
+      detail: "ORIGIN_URL is not set — there is nowhere to send human traffic.",
+    });
+    return new Response(
+      "ORIGIN_URL is not configured on this Worker.\nSet it in wrangler.toml.\n",
+      { status: 502, headers: { "content-type": "text/plain; charset=utf-8" } }
+    );
+  }
+
   let target;
   try {
     target = new URL(url.pathname + url.search, originUrl);

@@ -1,12 +1,15 @@
 -- Agent-First Front Door — D1 Schema
--- The Equation Agency LLC
 --
--- Apply with:  wrangler d1 migrations apply equation-agency-agents [--remote]
--- Or directly: wrangler d1 execute equation-agency-agents --file=migrations/0001_init.sql
+-- Apply with:  wrangler d1 migrations apply agent-front-door [--remote]
+-- Or directly: wrangler d1 execute agent-front-door --file=migrations/0001_init.sql
 -- (add --remote to apply to the production D1 instance instead of local)
+--
+-- services / availability / bookings are the demo domain: swap them for
+-- whatever your site actually offers. request_log and incidents are the
+-- framework, and every deployment wants them as they are.
 
 -- ---------------------------------------------------------------------------
--- services: what the agency offers. Read by both the agent JSON payload
+-- services: what you offer. Read by both the agent JSON payload
 -- and the MCP get_services tool — single source of truth.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS services (

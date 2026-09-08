@@ -1,0 +1,30 @@
+name: Feature request
+description: Something the front door should do and does not.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Worth reading the Scope section of CONTRIBUTING.md first. This project
+        routes requests and serves a payload; the booking domain is a worked
+        example, not the point.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that this makes hard?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like it to do
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead

@@ -18,10 +18,7 @@ import {
 import { recordIncident } from "../../src/observability.js";
 import { validateBookingInput } from "../../src/validate.js";
 
-const SERVER_INFO = {
-  name: "equation-agency-front-door",
-  version: "0.1.0",
-};
+const VERSION = "0.1.0";
 
 const priceShape = z.object({
   amount_cents: z.number().int().nullable(),
@@ -77,11 +74,15 @@ async function failure(env, tool, err) {
  * per-session memory, so state lives in D1, not in the process.
  */
 export function createMcpServer(env) {
-  const server = new McpServer(SERVER_INFO, {
-    instructions:
-      "Services, availability and bookings for The Equation Agency. Call " +
-      "check_availability for a slot_id before calling book_consult.",
-  });
+  const site = env?.SITE_NAME || "this organisation";
+  const server = new McpServer(
+    { name: env?.SERVER_NAME || "agent-front-door", version: VERSION },
+    {
+      instructions:
+        `Services, availability and bookings for ${site}. Call ` +
+        "check_availability for a slot_id before calling book_consult.",
+    }
+  );
 
   server.registerTool(
     "get_services",

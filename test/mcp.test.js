@@ -57,7 +57,7 @@ test("initialize and tools/list expose exactly the three capabilities", async ()
     params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } },
   });
   assert.equal(init.status, 200);
-  assert.equal(init.body.result.serverInfo.name, "equation-agency-front-door");
+  assert.equal(init.body.result.serverInfo.name, "agent-front-door");
 
   const list = await rpc(env, { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
   assert.deepEqual(

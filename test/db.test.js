@@ -23,7 +23,7 @@ test("seed data loads and only active services are listed", async () => {
   assert.ok(!services.some((s) => s.name === "Retired"));
 
   const cheapest = services[0];
-  assert.equal(cheapest.name, "Digital Marketing Audit");
+  assert.equal(cheapest.name, "Audit");
   assert.equal(cheapest.price.amount_cents, 30000);
   assert.equal(cheapest.price.display, "$300");
 });

@@ -69,7 +69,8 @@ test("agents get the payload, populated from D1", async () => {
     ["get_services", "check_availability", "book_consult"]
   );
   assert.equal(body.actions[0].url, "https://frontdoor.example.com/api/services");
-  assert.deepEqual(body.mcp_server.tools, ["get_services", "check_availability", "book_consult"]);
+  assert.equal(body.site.url, "https://frontdoor.example.com");
+  assert.equal(body.mcp_server, null, "no MCP url configured in this env");
 });
 
 test("the payload advertises only slots the booking endpoint would accept", async () => {
@@ -97,6 +98,15 @@ test("humans are proxied to ORIGIN_URL with path and query preserved", async () 
     // The origin's own Vary survives; ours is added on top.
     assert.equal(response.headers.get("vary"), "accept-encoding, user-agent, accept");
   });
+});
+
+test("an unset ORIGIN_URL refuses rather than proxying somewhere arbitrary", async () => {
+  const { response, sqlite } = await call(req("/", { headers: BROWSER_HEADERS }), {
+    ORIGIN_URL: undefined,
+  });
+  assert.equal(response.status, 502);
+  assert.match(await response.text(), /ORIGIN_URL is not configured/);
+  assert.match(rows(sqlite, "SELECT detail FROM incidents")[0].detail, /ORIGIN_URL is not set/);
 });
 
 test("a passthrough loop is refused instead of recursing", async () => {
@@ -281,7 +291,7 @@ test("a D1 failure degrades the payload instead of 500ing, and records an incide
   const body = await response.json();
   assert.equal(body.status, "degraded");
   assert.deepEqual(body.services, []);
-  assert.ok(body.mcp_server.url, "the agent can still fall back to MCP");
+  assert.ok(body.site.name, "the agent can still see who it is talking to");
   assert.match(body.degraded_reason, /temporarily unavailable/);
 
   const incidents = rows(sqlite, "SELECT kind, detail FROM incidents");

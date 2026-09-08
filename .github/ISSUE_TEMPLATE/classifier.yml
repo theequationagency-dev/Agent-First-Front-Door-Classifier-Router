@@ -1,0 +1,52 @@
+name: Classifier miss
+description: Something landed in the wrong bucket. The most useful issue you can file.
+title: "classifier: <user agent> classified as <bucket>"
+labels: ["classifier"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The user-agent list only gets better with real traffic, and no single
+        deployment sees enough of it. A user-agent string on its own is a
+        complete report — you do not need to send a fix.
+
+  - type: input
+    id: user-agent
+    attributes:
+      label: User agent
+      description: The full string, verbatim.
+      placeholder: Mozilla/5.0 (compatible; SomeBot/1.0; +https://example.com/bot)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: got
+    attributes:
+      label: It was classified as
+      options: [mcp, agent, unknown, human]
+    validations:
+      required: true
+
+  - type: dropdown
+    id: expected
+    attributes:
+      label: It should have been
+      options: [mcp, agent, unknown, human]
+    validations:
+      required: true
+
+  - type: textarea
+    id: headers
+    attributes:
+      label: Other request headers
+      description: >
+        Especially `accept` and any `sec-fetch-*` / `sec-ch-ua`. Redact
+        anything identifying. The report at
+        `/admin/classification-report` is a good source.
+      render: text
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: How often you see it, what the client actually is if you know.

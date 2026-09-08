@@ -41,7 +41,7 @@ export default {
     // Advertise where the tools are, for anything that lands on the root.
     if (path === "/") {
       return Response.json({
-        server: "equation-agency-front-door",
+        server: env?.SERVER_NAME || "agent-front-door",
         transport: "streamable-http",
         endpoint: new URL(MCP_PATH, url.origin).toString(),
         tools: ["get_services", "check_availability", "book_consult"],

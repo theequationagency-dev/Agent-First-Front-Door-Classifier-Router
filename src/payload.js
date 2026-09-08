@@ -10,11 +10,13 @@
 import { listActiveServices, listOpenSlots } from "./db.js";
 import { recordIncident } from "./observability.js";
 
+// Placeholders only. Set the real values as vars in wrangler.toml — the
+// point of this project is that your identity is config, not code.
 const DEFAULTS = {
-  BUSINESS_NAME: "The Equation Agency LLC",
-  BUSINESS_DESCRIPTION: "AI-native digital strategy and marketing agency.",
-  CONTACT_EMAIL: "management@theequationagencyllc.com",
-  MCP_SERVER_URL: "https://mcp.theequationagencyllc.com",
+  SITE_NAME: "This site",
+  SITE_DESCRIPTION: null,
+  CONTACT_EMAIL: null,
+  MCP_SERVER_URL: null,
 };
 
 const cfg = (env, key) => env?.[key] || DEFAULTS[key];
@@ -74,19 +76,28 @@ export async function buildAgentPayload(env, request) {
 
   const base = {
     status: "ok",
-    business: {
-      name: cfg(env, "BUSINESS_NAME"),
-      description: cfg(env, "BUSINESS_DESCRIPTION"),
+    site: {
+      name: cfg(env, "SITE_NAME"),
+      description: cfg(env, "SITE_DESCRIPTION"),
       contact: cfg(env, "CONTACT_EMAIL"),
       url: origin,
     },
     actions: actionCatalog().map((a) => ({ ...a, url: origin + a.endpoint })),
-    mcp_server: {
-      url: cfg(env, "MCP_SERVER_URL"),
-      transport: "streamable-http",
-      tools: ["get_services", "check_availability", "book_consult"],
-      note: "Prefer connecting here directly for tool-call access instead of scraping this JSON.",
+    discovery: {
+      agent_json: `${origin}/.well-known/agent.json`,
+      llms_txt: `${origin}/llms.txt`,
+      note:
+        "Any URL on this site returns this payload to a client that asks for " +
+        "JSON. These two are stable if you would rather not rely on that.",
     },
+    mcp_server: cfg(env, "MCP_SERVER_URL")
+      ? {
+          url: cfg(env, "MCP_SERVER_URL"),
+          transport: "streamable-http",
+          tools: ["get_services", "check_availability", "book_consult"],
+          note: "Prefer connecting here directly for tool-call access instead of scraping this JSON.",
+        }
+      : null,
     generated_at: new Date().toISOString(),
   };
 
@@ -106,8 +117,8 @@ export async function buildAgentPayload(env, request) {
       ...base,
       status: "degraded",
       degraded_reason:
-        "Live service and availability data is temporarily unavailable. The actions " +
-        "below are still valid — retry, or use the MCP server.",
+        "Live data is temporarily unavailable. The actions below are still " +
+        "valid — retry, or use the MCP server.",
       services: [],
       availability: [],
     };
