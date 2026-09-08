@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": false,
   "type": "module",
-  "description": "One URL, two response bodies: agents get a live structured action payload, humans get your website. A Cloudflare Worker front door with an MCP server over the same data.",
+  "description": "Answer AI agents in one request instead of making them crawl your site. A Cloudflare Worker front door that serves agents live, typed, structured data — and an MCP server over the same tables — while humans get your website unchanged.",
   "main": "src/index.js",
   "scripts": {
     "test": "node --test \"test/**/*.test.js\"",

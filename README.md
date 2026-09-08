@@ -1,14 +1,17 @@
 # Agent-First Front Door
 
 **One URL, two response bodies.** An agent asks for your homepage and gets a
-typed JSON payload of what you offer and exactly which calls to make next. A
-person asks for the same URL and gets your website, untouched.
+typed JSON payload of what you offer and exactly which calls to make next — in
+one request, with no pages to crawl. A person asks for the same URL and gets
+your website, untouched.
 
 [![CI](https://github.com/theequationagency-dev/Agent-First-Front-Door-Classifier-Router/actions/workflows/ci.yml/badge.svg)](https://github.com/theequationagency-dev/Agent-First-Front-Door-Classifier-Router/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A Cloudflare Worker in front of the site you already have. No changes to your
-site, no separate "AI version" to keep in sync.
+A Cloudflare Worker that sits in front of the site you already have. No
+changes to your site, no separate "AI version" to keep in sync. Built for any
+business or agency to fork and point at its own data — your identity is
+configuration, not code, and it is MIT licensed.
 
 ```
 Request → Worker (classifyRequest)
@@ -21,6 +24,61 @@ Request → Worker (classifyRequest)
    site      JSON       (same tables,
    (as-is)   payload     exposed as tools)
 ```
+
+## Why this exists
+
+Today, an agent that wants to know what you charge does this: fetch your
+homepage, parse the HTML, guess which link is pricing, fetch that, parse
+again, maybe fetch a third page for the calendar, then hand a model its best
+guess. In, out, in, out. Every hop is latency, tokens someone is paying for,
+and another chance to read the wrong number off a marketing page.
+
+That is not the agent being careless. It is the only thing available to it,
+because the only thing your site publishes is a document written for human
+eyes. Structured data helps — `schema.org` markup, an `llms.txt` file — but it
+is still something you maintain by hand, on the side, describing pages the
+agent then has to go and read anyway.
+
+**This project is a different answer: publish the data itself, in the response
+the agent already asked for.** Not a document to parse and not a map of pages
+to visit — a typed record of what you offer, what is available right now, and
+the exact calls that change it. One request, one answer, no round trips.
+
+The intent is that any business or agency can put this in front of the site
+they already have and stop being read like a brochure. Nothing here is
+specific to whoever built it: your identity is configuration, the data layer
+is one file, and it is MIT licensed. Fork it, point it at your database, ship
+it. The more sites answer agents directly, the less the whole ecosystem spends
+on scraping and guessing — **faster responses everywhere**, not just on yours.
+
+### What you get from it
+
+**Speed.** One round trip instead of three or four. The facts are in the first
+response, and the agent spends its context on your answer rather than on your
+navigation.
+
+**Data that is richer than a page.** Prices as integer cents with a currency,
+not `$300` in a heading. Times as ISO timestamps, not "next Tuesday". Actions
+with a method, a body schema, and the error codes they return, so an agent
+knows a booking failed because the slot was taken — not because something went
+wrong somewhere.
+
+**Answers that hold.** The payload, the `/api/*` endpoints, `/llms.txt` and
+the MCP tools all read the same rows. The price an agent quotes is the price
+your booking endpoint will honour, because there is no second copy to drift
+out of date. A hand-maintained file is a promise you have to remember to keep;
+this one cannot get it wrong.
+
+**A record of what you served.** `request_log` captures every request and how
+it was classified. `incidents` captures every failure on the agent path. If
+you ever need to answer "what were we telling agents, and when" — for an
+audit, a dispute, or your own debugging — the answer is a query rather than a
+guess.
+
+**Interoperability, not a private format.** It implements the conventions
+agents already look for: `llms.txt`, `/.well-known/`, content negotiation on
+`Accept`, and the Model Context Protocol for tool calls. Nothing here asks the
+ecosystem to adopt something new.
 
 ## Why not just llms.txt?
 
