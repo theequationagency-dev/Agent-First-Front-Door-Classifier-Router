@@ -8,6 +8,12 @@ Use GitHub's private reporting — the **Security** tab → **Report a
 vulnerability** — on this repository. That opens a private thread with the
 maintainers.
 
+If that button is not there, private reporting has not been switched on for
+this repository yet. In that case open a public issue that says only that you
+have a security report and asks for a private channel — **no details, no proof
+of concept**. A maintainer will come back to you with somewhere private to
+send it.
+
 Include what you can: the version or commit, what you did, what happened, and
 what you expected. A proof of concept helps but is not required to file.
 
