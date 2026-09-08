@@ -1,24 +1,46 @@
+# Router Worker — classifier, agent payload, /api/* and /admin/*.
+# The MCP server is a separate Worker: see mcp/wrangler.toml.
+
 name = "agent-first-front-door"
 main = "src/index.js"
 compatibility_date = "2025-09-01"
 
 [vars]
-# Where human traffic is proxied. Override per-environment below.
+# Where human traffic is proxied. This MUST be a hostname the Worker route
+# below does not match, or the passthrough loops back into this Worker.
+# (The Worker returns 508 rather than looping if you get this wrong.)
 ORIGIN_URL = "https://theequationagencyllc.com"
 
-# Route the Worker in front of the whole zone. Fill in your zone name, then
-# uncomment. Keep the origin on a hostname the Worker does NOT match, or the
-# human pass-through will loop back into this Worker.
+# Everything the agent payload says about the business. Vars, not literals,
+# so the payload can be changed without a code deploy.
+BUSINESS_NAME = "The Equation Agency LLC"
+BUSINESS_DESCRIPTION = "AI-native digital strategy and marketing agency."
+CONTACT_EMAIL = "management@theequationagencyllc.com"
+MCP_SERVER_URL = "https://mcp.theequationagencyllc.com"
+
+# Shared source of truth with the /api routes and the MCP server.
+# Create with: wrangler d1 create equation-agency-agents
+[[d1_databases]]
+binding = "DB"
+database_name = "equation-agency-agents"
+database_id = "REPLACE_WITH_ID_FROM_WRANGLER_D1_CREATE"
+migrations_dir = "migrations"
+
+# Route the Worker in front of the whole zone. Fill in your zone, then
+# uncomment. Until then `wrangler dev` serves it on localhost.
 # [[routes]]
 # pattern = "theequationagencyllc.com/*"
 # zone_name = "theequationagencyllc.com"
 
-# D1 binding for the request log and the agent payload source of truth.
-# Create with: wrangler d1 create agent-front-door
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "agent-front-door"
-# database_id = "<id from wrangler d1 create>"
+# ADMIN_TOKEN gates /admin/classification-report. It is a secret, not a var:
+#   wrangler secret put ADMIN_TOKEN
+# For local dev put it in .dev.vars (gitignored).
 
-[env.staging.vars]
-ORIGIN_URL = "https://staging.theequationagencyllc.com"
+[env.staging]
+vars = { ORIGIN_URL = "https://staging.theequationagencyllc.com", BUSINESS_NAME = "The Equation Agency LLC", BUSINESS_DESCRIPTION = "AI-native digital strategy and marketing agency.", CONTACT_EMAIL = "management@theequationagencyllc.com", MCP_SERVER_URL = "https://mcp-staging.theequationagencyllc.com" }
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "equation-agency-agents-staging"
+database_id = "REPLACE_WITH_STAGING_ID"
+migrations_dir = "migrations"

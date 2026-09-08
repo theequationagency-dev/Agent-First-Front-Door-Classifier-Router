@@ -3,15 +3,27 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Cloudflare Worker that classifies inbound traffic and serves agents a structured action payload while passing humans through to the origin.",
+  "description": "Cloudflare Worker front door that serves agents a D1-backed JSON action payload and passes humans through to the origin, plus an MCP server over the same tables.",
   "main": "src/index.js",
   "scripts": {
     "test": "node --test \"test/**/*.test.js\"",
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --port 8787",
+    "dev:mcp": "wrangler dev -c mcp/wrangler.toml --port 8788 --persist-to .wrangler/state",
     "deploy": "wrangler deploy",
-    "tail": "wrangler tail"
+    "deploy:mcp": "wrangler deploy -c mcp/wrangler.toml",
+    "tail": "wrangler tail",
+    "migrate:local": "wrangler d1 migrations apply equation-agency-agents --local",
+    "migrate": "wrangler d1 migrations apply equation-agency-agents --remote",
+    "seed:local": "wrangler d1 execute equation-agency-agents --local --file=seed.sql"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "wrangler": "^4.129.1"
   }
 }
