@@ -12,6 +12,10 @@
 #
 # `topics` must stay ONE comma-separated string — the app splits on commas.
 # Do not add a `name:` key here; that would rename the repository.
+#
+# The app only syncs on a push to main that adds or modifies this file. If
+# it is ever installed after the file already exists, any edit here — even
+# to a comment — triggers the first sync.
 
 repository:
   description: "Answer AI agents in one request instead of making them crawl your site. A Cloudflare Worker front door that serves agents live, typed structured data — with an MCP server over the same tables — while humans get your website unchanged. Fork it, point it at your data, ship it. MIT."
