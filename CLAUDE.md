@@ -11,7 +11,7 @@ failure this project exists to fix.
 ## Commands
 
 ```sh
-npm test             # 55 tests. No network, no wrangler, no Cloudflare account
+npm test             # 76 tests. No network, no wrangler, no Cloudflare account
 npm run build:check  # both Workers must bundle; needs no credentials
 npm run dev          # router Worker  :8787
 npm run dev:mcp      # MCP Worker     :8788 (shares the local D1)
@@ -31,13 +31,14 @@ Two Workers, one D1 database.
 | | |
 | --- | --- |
 | `src/index.js` | Router: classify → admin → discovery → api → payload or origin |
-| `src/classifier.js` | The four-bucket ruleset. Self-contained on purpose |
+| `src/classifier.js` | The five-bucket ruleset. Self-contained on purpose |
 | `src/db.js` | **Every D1 query in the system** |
 | `src/payload.js` | The agent-facing JSON |
 | `src/routes/` | `api.js`, `admin.js`, `discovery.js` (`/llms.txt`, `/.well-known/agent.json`) |
 | `src/observability.js` | `request_log` + `incidents` writes, admin report query |
 | `mcp/src/` | MCP server Worker, same D1, official TypeScript SDK |
 | `test/helpers/d1.js` | D1 API implemented over `node:sqlite` |
+| `deploy/theequation.agency/` | A real deployment: config + seed, no prices |
 
 ## Invariants
 
@@ -76,6 +77,10 @@ Do not reopen these without a reason that is new.
   Node service would need an extra hop and an extra credential. Stateless mode
   means no server-initiated notifications and no resumable streams; those need
   a Durable Object. Full reasoning at the top of `mcp/src/index.js`.
+- **Search engines and link previews always get the website** (the `search`
+  bucket, checked before the agent list). Serving them the payload would put
+  JSON in search results and break shared-link previews. Do not move a search
+  crawler into `KNOWN_AGENT_UA`; a test fails if one is in both lists.
 - **`incidents` is separate from `request_log`.** Failures on the agent path
   are their own signal, not traffic noise.
 - **Discovery endpoints answer everyone.** A misclassified agent can still ask
@@ -97,8 +102,8 @@ Do not reopen these without a reason that is new.
 
 ## Testing approach
 
-`test/helpers/d1.js` implements the D1 API over `node:sqlite` and loads the
-real `migrations/0001_init.sql` and `seed.sql`. The tests therefore run the
+`test/helpers/d1.js` implements the D1 API over `node:sqlite` and loads every
+file in `migrations/` and `seed.sql`. The tests therefore run the
 actual schema and the actual SQL — a broken query fails the suite, not just
 broken JavaScript. Only the transport is faked, and only the methods the code
 calls are implemented, so a new dependency on the D1 API shows up as a failure
@@ -123,5 +128,5 @@ over a real HTTP server, to prove a real client can connect.
 ## Known gaps
 
 Documented in the README under "Not done yet": no booking notification, no
-rate limiting on `/api/book`, no retention policy for `request_log` or
-`bookings` (both hold personal data), admin auth is a shared secret.
+rate limiting on `/api/book`, no retention for `bookings` (`request_log` and
+`incidents` are purged by the cron trigger), admin auth is a shared secret.

@@ -46,6 +46,7 @@ export async function handleDiscovery(request, env) {
       "cache-control": "public, max-age=60",
       "x-served-as": "discovery",
       "access-control-allow-origin": "*",
+      "x-robots-tag": "noindex",
     },
   });
 }
@@ -87,7 +88,8 @@ export function renderLlmsTxt(payload) {
     lines.push("## Services", "");
     for (const service of payload.services) {
       const price = service.price?.display ? ` (${service.price.display})` : "";
-      lines.push(`- ${service.name}${price}: ${service.description || ""}`.trimEnd());
+      const name = service.url ? `[${service.name}](${service.url})` : service.name;
+      lines.push(`- ${name}${price}: ${service.description || ""}`.trimEnd());
     }
     lines.push("");
   }

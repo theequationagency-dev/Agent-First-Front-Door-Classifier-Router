@@ -15,14 +15,61 @@ import { recordIncident } from "./observability.js";
 const DEFAULTS = {
   SITE_NAME: "This site",
   SITE_DESCRIPTION: null,
+  SITE_LANGUAGE: null,
   CONTACT_EMAIL: null,
+  CONTACT_URL: null,
   MCP_SERVER_URL: null,
 };
 
 const cfg = (env, key) => env?.[key] || DEFAULTS[key];
 
-/** The three advertised actions, described the way an agent needs them. */
-export function actionCatalog() {
+/**
+ * BOOKING_URL switches booking to an external page (a scheduler such as
+ * cal.com) that a person completes. When it is set, the built-in slot and
+ * booking endpoints are not offered: the payload, /api/* and the MCP server
+ * all point to this URL instead, and nothing is written to the bookings
+ * table. Only an https:// URL counts, so a typo cannot advertise a bad link.
+ */
+export function externalBookingUrl(env) {
+  const raw = env?.BOOKING_URL;
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The tool names the MCP server registers, in the same booking mode. */
+export function mcpToolNames(env) {
+  return externalBookingUrl(env)
+    ? ["get_services", "get_booking_link"]
+    : ["get_services", "check_availability", "book_consult"];
+}
+
+/** The advertised actions, described the way an agent needs them. */
+export function actionCatalog(env) {
+  const booking = externalBookingUrl(env);
+  if (booking) {
+    return [
+      {
+        name: "get_services",
+        description: "List current service offerings, each with the page that describes it.",
+        endpoint: "/api/services",
+        method: "GET",
+      },
+      {
+        name: "book_call",
+        description:
+          "Open this page to book a call. A person picks the time on the page; " +
+          "there is no API booking on this site.",
+        url: booking,
+        method: "GET",
+        content_type: "text/html",
+      },
+    ];
+  }
   return [
     {
       name: "get_services",
@@ -79,10 +126,12 @@ export async function buildAgentPayload(env, request) {
     site: {
       name: cfg(env, "SITE_NAME"),
       description: cfg(env, "SITE_DESCRIPTION"),
+      language: cfg(env, "SITE_LANGUAGE"),
       contact: cfg(env, "CONTACT_EMAIL"),
+      contact_page: cfg(env, "CONTACT_URL"),
       url: origin,
     },
-    actions: actionCatalog().map((a) => ({ ...a, url: origin + a.endpoint })),
+    actions: actionCatalog(env).map((a) => ({ ...a, url: a.url || origin + a.endpoint })),
     discovery: {
       agent_json: `${origin}/.well-known/agent.json`,
       llms_txt: `${origin}/llms.txt`,
@@ -94,7 +143,7 @@ export async function buildAgentPayload(env, request) {
       ? {
           url: cfg(env, "MCP_SERVER_URL"),
           transport: "streamable-http",
-          tools: ["get_services", "check_availability", "book_consult"],
+          tools: mcpToolNames(env),
           note: "Prefer connecting here directly for tool-call access instead of scraping this JSON.",
         }
       : null,
@@ -104,7 +153,7 @@ export async function buildAgentPayload(env, request) {
   try {
     const [services, availability] = await Promise.all([
       listActiveServices(env),
-      listOpenSlots(env, { limit: 10 }),
+      externalBookingUrl(env) ? [] : listOpenSlots(env, { limit: 10 }),
     ]);
     return { ...base, services, availability };
   } catch (err) {

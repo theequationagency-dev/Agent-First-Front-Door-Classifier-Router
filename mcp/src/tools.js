@@ -17,12 +17,13 @@ import {
 } from "../../src/db.js";
 import { recordIncident } from "../../src/observability.js";
 import { validateBookingInput } from "../../src/validate.js";
+import { externalBookingUrl } from "../../src/payload.js";
 
 const VERSION = "0.1.0";
 
 const priceShape = z.object({
   amount_cents: z.number().int().nullable(),
-  currency: z.string(),
+  currency: z.string().nullable(),
   display: z.string().nullable(),
 });
 
@@ -30,6 +31,7 @@ const serviceShape = z.object({
   id: z.number().int(),
   name: z.string(),
   description: z.string().nullable(),
+  url: z.string().nullable(),
   price: priceShape,
 });
 
@@ -75,12 +77,14 @@ async function failure(env, tool, err) {
  */
 export function createMcpServer(env) {
   const site = env?.SITE_NAME || "this organisation";
+  const bookingUrl = externalBookingUrl(env);
   const server = new McpServer(
     { name: env?.SERVER_NAME || "agent-front-door", version: VERSION },
     {
-      instructions:
-        `Services, availability and bookings for ${site}. Call ` +
-        "check_availability for a slot_id before calling book_consult.",
+      instructions: bookingUrl
+        ? `Services for ${site}. To book a call, give the person the link from get_booking_link.`
+        : `Services, availability and bookings for ${site}. Call ` +
+          "check_availability for a slot_id before calling book_consult.",
     }
   );
 
@@ -101,6 +105,22 @@ export function createMcpServer(env) {
       }
     }
   );
+
+  if (bookingUrl) {
+    // External booking: no slot tools, and nothing writes to the bookings
+    // table. The same switch turns off /api/availability and /api/book.
+    server.registerTool(
+      "get_booking_link",
+      {
+        title: "Get booking link",
+        description: "The page where a person books a call. Times are picked on that page.",
+        inputSchema: {},
+        outputSchema: { booking_url: z.string() },
+      },
+      async () => ok({ booking_url: bookingUrl })
+    );
+    return server;
+  }
 
   server.registerTool(
     "check_availability",
