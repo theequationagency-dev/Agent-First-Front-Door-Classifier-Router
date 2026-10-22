@@ -4,7 +4,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { classifyRequest, bookingSourceFor } from "../src/classifier.js";
+import {
+  classifyRequest,
+  bookingSourceFor,
+  SEARCH_AND_PREVIEW_UA,
+  KNOWN_AGENT_UA,
+} from "../src/classifier.js";
 
 const BROWSER_HEADERS = {
   "user-agent":
@@ -83,5 +88,44 @@ test("booking source follows the classification", () => {
   assert.equal(bookingSourceFor("agent"), "agent");
   assert.equal(bookingSourceFor("unknown"), "agent");
   assert.equal(bookingSourceFor("human"), "human");
+  assert.equal(bookingSourceFor("search"), "unknown");
   assert.equal(bookingSourceFor("nonsense"), "unknown");
+});
+
+test("search: search engines and link previews are their own bucket", () => {
+  for (const ua of [
+    "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X) AppleWebKit/537.36 (KHTML, like Gecko) " +
+      "Chrome/130.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)",
+    "WhatsApp/2.23.20.0",
+    "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+    "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)",
+    "TelegramBot (like TwitterBot)",
+    "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)",
+  ]) {
+    assert.equal(
+      classifyRequest(req("https://example.com/", { "user-agent": ua, accept: "text/html" })),
+      "search",
+      ua
+    );
+  }
+});
+
+test("search beats a JSON Accept header: a crawler never gets the payload", () => {
+  assert.equal(
+    classifyRequest(
+      req("https://example.com/", {
+        "user-agent": "Mozilla/5.0 (compatible; Googlebot/2.1)",
+        accept: "application/json",
+      })
+    ),
+    "search"
+  );
+});
+
+test("search engines are not in the agent list", () => {
+  for (const needle of SEARCH_AND_PREVIEW_UA) {
+    assert.ok(!KNOWN_AGENT_UA.includes(needle), `${needle} is in both lists`);
+  }
 });

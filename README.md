@@ -151,7 +151,7 @@ Node 22+ and a Cloudflare account.
 git clone https://github.com/theequationagency-dev/Agent-First-Front-Door-Classifier-Router.git
 cd Agent-First-Front-Door-Classifier-Router
 npm install
-npm test          # 55 tests, no network and no Cloudflare account needed
+npm test          # 76 tests, no network and no Cloudflare account needed
 ```
 
 Then run it against a local database:
@@ -180,7 +180,18 @@ Three files, in order of how much you will change them:
 
 1. **`wrangler.toml`** — `ORIGIN_URL` (your existing site), `SITE_NAME`,
    `SITE_DESCRIPTION`, `CONTACT_EMAIL`, `MCP_SERVER_URL`. Your identity is
-   config, not code.
+   config, not code. Optional, for running in front of a real site:
+
+   | Var | What it does |
+   | --- | --- |
+   | `ORIGIN_URL = "same-host"` | The Worker runs as a Cloudflare route in front of a site on the same hostname (for example a Pages custom domain). `fetch(request)` on a route goes to the zone's origin, so there is no second hostname for search engines to see as a duplicate. |
+   | `UNKNOWN_SERVES = "site"` | Send the `unknown` bucket to the website instead of the payload. Use it if your visitors include older browsers (Safari before 16.4 sends no `sec-fetch-*` headers). |
+   | `BOOKING_URL` | An `https://` booking page (cal.com, Calendly…). The payload offers it as the `book_call` action, `/api/availability` and `/api/book` answer `404 booking_external` with the link, the MCP server offers `get_booking_link`, and nothing is written to `bookings`. |
+   | `SITE_LANGUAGE`, `CONTACT_URL` | Shown in the payload's `site` block. |
+   | `LOG_RETENTION_DAYS` | Default 30. A cron trigger deletes older `request_log` rows (incidents after three times as long). |
+
+   [`deploy/theequation.agency/`](deploy/theequation.agency/) is a complete
+   real-site configuration using all of these, with its own seed data.
 2. **`migrations/0001_init.sql` + `src/db.js`** — `services`, `availability`
    and `bookings` are a worked example of the pattern. Most people should
    replace them with whatever their site actually offers. `request_log` and
@@ -195,19 +206,30 @@ written. If you find yourself writing SQL anywhere else, that is the bug.
 
 ## How classification works
 
-`classifyRequest()` in `src/classifier.js` returns one of four buckets. Read
+`classifyRequest()` in `src/classifier.js` returns one of five buckets. Read
 that one file to change a rule — it is a list of substrings, a list of headers,
 and some ordered if-statements, on purpose.
 
 1. **`mcp`** — path starts with `/mcp`, or the request carries `mcp-session-id`
    or `x-mcp-client`. Wins even for browser-shaped requests.
-2. **`agent`** — the User-Agent matches a known crawler/LLM-fetcher/HTTP-client
+2. **`search`** — a search engine or link-preview fetcher (Googlebot, Bingbot,
+   WhatsApp, facebookexternalhit, Slackbot…). **Always gets the website.** A
+   search engine that indexed the payload would replace your pages in its
+   results, and a chat app that got it would show a shared link with no title
+   or picture. Checked before the agent list, so it also wins over
+   `Accept: application/json`.
+3. **`agent`** — the User-Agent matches a known crawler/LLM-fetcher/HTTP-client
    substring, *or* the client accepts JSON but not HTML, *or* there is no
    User-Agent at all.
-3. **`unknown`** — accepts HTML but sends none of `sec-fetch-mode`,
-   `sec-fetch-site`, `sec-ch-ua`. Probably a custom scraper. **Served the agent
-   payload**, and logged distinctly so you can review it.
-4. **`human`** — everything else. Proxied to `ORIGIN_URL`.
+4. **`unknown`** — accepts HTML but sends none of `sec-fetch-mode`,
+   `sec-fetch-site`, `sec-ch-ua`. Probably a custom scraper, but also Safari
+   before 16.4. **Served the agent payload** unless `UNKNOWN_SERVES = "site"`,
+   and logged distinctly so you can review it.
+5. **`human`** — everything else. Proxied to `ORIGIN_URL`.
+
+Every JSON response (the payload, `/api/*`, `/.well-known/agent.json`) and
+`/llms.txt` carries `X-Robots-Tag: noindex`. Pages passed through from your
+site keep their own headers.
 
 Because one URL returns two different bodies, every response sets
 `Vary: user-agent, accept` (appended to whatever `Vary` your origin already
@@ -327,7 +349,7 @@ handed an empty list.
 ## Testing
 
 ```sh
-npm test            # 55 tests
+npm test            # 76 tests
 npm run build:check # both Workers bundle
 ```
 
@@ -351,7 +373,8 @@ Fill in the `[[routes]]` blocks in both configs first — the router in front of
 your zone, the MCP server on its own hostname so the router's route does not
 swallow it. `ORIGIN_URL` must be a hostname the router's route does **not**
 match, or the passthrough loops; the Worker returns 508 rather than recursing,
-but the fix is the config.
+but the fix is the config. The exception is `ORIGIN_URL = "same-host"` on a
+route, where Cloudflare sends the subrequest to the zone's origin.
 
 Then watch `npm run tail` and the classification report for a day or two before
 trusting the ruleset.
@@ -362,9 +385,10 @@ trusting the ruleset.
   up before taking real traffic.
 - **No rate limiting on `/api/book`.** The `rate_limit` incident kind exists
   and origin 429s are recorded, but the Worker does not throttle callers.
-- **No retention policy.** `request_log` holds user agents and paths;
-  `bookings` holds names and email addresses. Both are personal data in most
-  jurisdictions and nothing deletes them for you.
+- **Retention covers the logs only.** The cron trigger deletes old
+  `request_log` and `incidents` rows (`LOG_RETENTION_DAYS`). `bookings` holds
+  names and email addresses and nothing deletes them; with `BOOKING_URL` set
+  nothing is written there in the first place.
 - **Admin auth is a shared secret.** Fine for one operator; put Cloudflare
   Access in front of `/admin/*` if you want SSO.
 

@@ -12,6 +12,8 @@
  * fall back to console.log so the failure is still visible in `wrangler tail`.
  */
 
+import { deleteLogsBefore } from "./db.js";
+
 export const INCIDENT_KINDS = [
   "rate_limit",
   "blocked_fetch",
@@ -92,6 +94,27 @@ export async function recordIncident(env, { path = null, kind = "other", detail 
 }
 
 /**
+ * Retention for the two logs. request_log holds user agents and paths, and it
+ * grows with every request, so it is not kept forever: rows older than
+ * LOG_RETENTION_DAYS (default 30) go, and incidents older than three times
+ * that. Run from the Worker's cron trigger. Like the writers above, it never
+ * throws.
+ */
+export async function purgeOldLogs(env, now = Date.now()) {
+  const days = Number.parseInt(env?.LOG_RETENTION_DAYS ?? "", 10);
+  const keepDays = Number.isFinite(days) && days >= 1 ? Math.min(days, 3650) : 30;
+  const cutoff = Math.floor(now / 1000) - keepDays * 86400;
+  const incidentCutoff = Math.floor(now / 1000) - keepDays * 3 * 86400;
+  try {
+    const deleted = await deleteLogsBefore(env, { logCutoff: cutoff, incidentCutoff });
+    return { ok: true, keep_days: keepDays, ...deleted };
+  } catch (err) {
+    console.error(JSON.stringify({ log: "purge_failed", error: String(err?.message || err) }));
+    return { ok: false, reason: String(err?.message || err) };
+  }
+}
+
+/**
  * The /admin/classification-report body: what the classifier decided over the
  * last `days`, which user agents are landing in the fuzzy buckets, and what
  * has been breaking for agents.
@@ -167,7 +190,7 @@ export async function classificationReport(env, { days = 7, limit = 25 } = {}) {
     unknown_bucket: {
       note:
         "Requests that accept HTML but send no browser fingerprint headers. " +
-        "They are served the agent payload. Move the real agents into " +
+        "They are served the agent payload unless UNKNOWN_SERVES is \"site\". Move the real agents into " +
         "KNOWN_AGENT_UA in src/classifier.js, and loosen the header rules if " +
         "real browsers show up here.",
       top_user_agents: rows(unknownAgents).map((r) => ({

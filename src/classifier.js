@@ -8,6 +8,41 @@
  * Review the decisions it makes with GET /admin/classification-report.
  */
 
+// Search engines and link-preview fetchers (lowercase match). These always get
+// your website, never the JSON payload: a search engine that indexed the
+// payload would replace your pages in its results, and a chat app that got it
+// would show a shared link with no title or picture. Checked before the agent
+// list below, so a UA that matches both (Bingbot used to be in both) still
+// gets the site.
+export const SEARCH_AND_PREVIEW_UA = [
+  "googlebot",
+  "google-inspectiontool",
+  "googleother",
+  "adsbot-google",
+  "mediapartners-google",
+  "storebot-google",
+  "chrome-lighthouse",
+  "bingbot",
+  "bingpreview",
+  "msnbot",
+  "duckduckbot",
+  "yandexbot",
+  "baiduspider",
+  "applebot",
+  "facebookexternalhit",
+  "facebookcatalog",
+  "whatsapp",
+  "telegrambot",
+  "twitterbot",
+  "linkedinbot",
+  "slackbot",
+  "discordbot",
+  "pinterestbot",
+  "skypeuripreview",
+  "ahrefsbot",
+  "semrushbot",
+];
+
 // Known agent / crawler / LLM-fetcher UA substrings (lowercase match).
 // Extend this list as new agents show up in your logs.
 export const KNOWN_AGENT_UA = [
@@ -21,7 +56,6 @@ export const KNOWN_AGENT_UA = [
   "perplexity-user",
   "ccbot",
   "google-extended",
-  "bingbot",
   "bytespider",
   "diffbot",
   "cohere-ai",
@@ -46,8 +80,8 @@ export const BROWSER_ONLY_HEADERS = [
   "sec-ch-ua",
 ];
 
-// The four buckets, in the order the rules below try them.
-export const CLASSIFICATIONS = ["mcp", "agent", "unknown", "human"];
+// The five buckets, in the order the rules below try them.
+export const CLASSIFICATIONS = ["mcp", "search", "agent", "unknown", "human"];
 
 // Request headers the classification depends on. Any shared cache in front of
 // this Worker must key on these, or one client's response body gets served to
@@ -55,7 +89,7 @@ export const CLASSIFICATIONS = ["mcp", "agent", "unknown", "human"];
 export const CLASSIFIER_VARY = "user-agent, accept";
 
 /**
- * Returns a classification: "mcp" | "agent" | "human" | "unknown"
+ * Returns a classification: "mcp" | "search" | "agent" | "human" | "unknown"
  */
 export function classifyRequest(request) {
   const url = new URL(request.url);
@@ -72,12 +106,17 @@ export function classifyRequest(request) {
     return "mcp";
   }
 
-  // 2. Known agent/bot UA string.
+  // 2. Search engines and link previews: always the website.
+  if (SEARCH_AND_PREVIEW_UA.some((needle) => ua.includes(needle))) {
+    return "search";
+  }
+
+  // 3. Known agent/bot UA string.
   if (KNOWN_AGENT_UA.some((needle) => ua.includes(needle))) {
     return "agent";
   }
 
-  // 3. Explicit preference for JSON over HTML (agents/scripts often send
+  // 4. Explicit preference for JSON over HTML (agents/scripts often send
   //    "Accept: application/json" or "*/*" with no "text/html").
   const acceptsHtml = accept.includes("text/html");
   const acceptsJson = accept.includes("application/json");
@@ -85,8 +124,11 @@ export function classifyRequest(request) {
     return "agent";
   }
 
-  // 4. Missing browser-fingerprint headers entirely + no UA at all.
-  //    Real browsers always send sec-fetch-* on modern Chromium/Firefox/Safari.
+  // 5. Missing browser-fingerprint headers entirely + no UA at all.
+  //    Current Chromium, Firefox and Safari send sec-fetch-*. Safari before
+  //    16.4 (iOS 16.4, March 2023) does not, so a person on an older iPhone
+  //    lands in "unknown" too. Set UNKNOWN_SERVES = "site" if that matters
+  //    for your audience (see src/index.js).
   const hasAnyBrowserHeader = BROWSER_ONLY_HEADERS.some((h) =>
     request.headers.has(h)
   );

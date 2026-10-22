@@ -16,7 +16,7 @@
 
 import { classifyRequest } from "./classifier.js";
 import { buildAgentPayload } from "./payload.js";
-import { logClassification, recordIncident } from "./observability.js";
+import { logClassification, recordIncident, purgeOldLogs } from "./observability.js";
 import { json, appendVary } from "./http.js";
 import { handleApi } from "./routes/api.js";
 import { handleAdmin } from "./routes/admin.js";
@@ -46,30 +46,48 @@ export default {
     const api = await handleApi(request, env, classification);
     if (api) return api;
 
-    switch (classification) {
-      case "mcp":
-      case "agent":
-      case "unknown": {
-        const payload = await buildAgentPayload(env, request);
-        return json(payload, {
-          headers: { "x-served-as": classification },
-          // Short cache: the payload embeds live availability, and Vary
-          // (set in json()) keeps a shared cache from serving it to a browser.
-          cache: "public, max-age=60",
-        });
-      }
-
-      case "human":
-      default:
-        return passThroughToOrigin(request, env, url);
+    if (servesPayload(classification, env)) {
+      const payload = await buildAgentPayload(env, request);
+      return json(payload, {
+        headers: { "x-served-as": classification },
+        // Short cache: the payload embeds live availability, and Vary
+        // (set in json()) keeps a shared cache from serving it to a browser.
+        cache: "public, max-age=60",
+      });
     }
+
+    return passThroughToOrigin(request, env, url, classification);
+  },
+
+  /** Cron trigger: drops request_log rows past their retention window. */
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(purgeOldLogs(env));
   },
 };
 
 /**
- * Humans get the existing site, untouched apart from a debug header.
+ * Which buckets get the JSON payload. "search" and "human" never do.
+ * "unknown" does by default; UNKNOWN_SERVES = "site" sends it to the website
+ * instead, for sites whose visitors include older browsers (see the
+ * classifier) and that would rather show a scraper HTML than show a person
+ * JSON.
  */
-async function passThroughToOrigin(request, env, url) {
+export function servesPayload(classification, env) {
+  if (classification === "mcp" || classification === "agent") return true;
+  if (classification === "unknown") return env?.UNKNOWN_SERVES !== "site";
+  return false;
+}
+
+/**
+ * Humans get the existing site, untouched apart from a debug header.
+ *
+ * ORIGIN_URL is either the origin's URL, or the literal "same-host" when this
+ * Worker runs as a Cloudflare route in front of a site on the same hostname
+ * (for example a Pages custom domain). On a route, fetch(request) goes to the
+ * zone's origin and does not invoke this Worker again, so there is no second
+ * hostname for search engines to find as a duplicate of the site.
+ */
+async function passThroughToOrigin(request, env, url, classification = "human") {
   // No default: a fork with no ORIGIN_URL set must not silently proxy
   // traffic to whatever site happened to be in the template.
   const originUrl = env.ORIGIN_URL;
@@ -83,6 +101,10 @@ async function passThroughToOrigin(request, env, url) {
       "ORIGIN_URL is not configured on this Worker.\nSet it in wrangler.toml.\n",
       { status: 502, headers: { "content-type": "text/plain; charset=utf-8" } }
     );
+  }
+
+  if (originUrl === "same-host") {
+    return finishPassthrough(await originFetch(request, env, url), classification, url, env);
   }
 
   let target;
@@ -108,18 +130,33 @@ async function passThroughToOrigin(request, env, url) {
     return new Response("Origin is misconfigured: passthrough loop.", { status: 508 });
   }
 
-  let originResponse;
+  return finishPassthrough(
+    await originFetch(new Request(target, request), env, url),
+    classification,
+    url,
+    env
+  );
+}
+
+/** Fetches from the origin; null (with an incident recorded) if it fails. */
+async function originFetch(request, env, url) {
   try {
-    originResponse = await fetch(new Request(target, request));
+    return await fetch(request);
   } catch (err) {
     await recordIncident(env, {
       path: url.pathname,
       kind: "blocked_fetch",
-      detail: `origin passthrough to ${target.host} failed: ${err?.message || err}`,
+      detail: `origin passthrough to ${new URL(request.url).host} failed: ${err?.message || err}`,
     });
+    return null;
+  }
+}
+
+async function finishPassthrough(originResponse, classification, url, env) {
+  if (!originResponse) {
     return new Response("Upstream site is unavailable.", {
       status: 502,
-      headers: { "x-served-as": "human", "retry-after": "30" },
+      headers: { "x-served-as": classification, "retry-after": "30" },
     });
   }
 
@@ -127,14 +164,14 @@ async function passThroughToOrigin(request, env, url) {
     await recordIncident(env, {
       path: url.pathname,
       kind: "rate_limit",
-      detail: `origin ${target.host} returned 429`,
+      detail: `origin returned 429`,
     });
   }
 
   // Clone so we can attach a debug header without mutating the
   // immutable response Cloudflare returned.
   const response = new Response(originResponse.body, originResponse);
-  response.headers.set("x-served-as", "human");
+  response.headers.set("x-served-as", classification);
   appendVary(response.headers);
   return response;
 }

@@ -10,7 +10,7 @@
  */
 
 import { DatabaseSync } from "node:sqlite";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const repoFile = (relative) => fileURLToPath(new URL(`../../${relative}`, import.meta.url));
@@ -92,13 +92,15 @@ class FakeD1 {
 }
 
 /**
- * Fresh in-memory database with migrations/0001_init.sql applied.
+ * Fresh in-memory database with every file in migrations/ applied, in order.
  * Pass { seed: true } to also load seed.sql.
  */
 export function createTestDb({ seed = false } = {}) {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec("PRAGMA foreign_keys = ON;");
-  sqlite.exec(readFileSync(repoFile("migrations/0001_init.sql"), "utf8"));
+  for (const file of readdirSync(repoFile("migrations")).filter((f) => f.endsWith(".sql")).sort()) {
+    sqlite.exec(readFileSync(repoFile(`migrations/${file}`), "utf8"));
+  }
   if (seed) sqlite.exec(readFileSync(repoFile("seed.sql"), "utf8"));
   return { DB: new FakeD1(sqlite), sqlite };
 }

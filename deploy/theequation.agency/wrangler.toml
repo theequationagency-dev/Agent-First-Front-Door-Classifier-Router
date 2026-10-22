@@ -1,0 +1,50 @@
+# Agent-First Front Door on theequation.agency.
+#
+# The Worker runs as a Cloudflare *route* in front of the Pages site on the
+# same hostname. People, search engines and link previews get the Pages site
+# exactly as it is (ORIGIN_URL = "same-host": fetch(request) on a route goes to
+# the zone's origin, not back into this Worker). AI agents get the JSON
+# payload built from deploy/theequation.agency/seed.sql.
+#
+# Deploy (from the repo root, after the D1 database exists):
+#   npx wrangler d1 create theequation-agency-front-door      # once; paste the id below
+#   npx wrangler d1 migrations apply theequation-agency-front-door --remote -c deploy/theequation.agency/wrangler.toml
+#   npx wrangler d1 execute theequation-agency-front-door --remote -c deploy/theequation.agency/wrangler.toml --file=deploy/theequation.agency/seed.sql
+#   npx wrangler secret put ADMIN_TOKEN -c deploy/theequation.agency/wrangler.toml
+#   npx wrangler deploy -c deploy/theequation.agency/wrangler.toml
+# Undo: delete the route in Cloudflare (Workers Routes) and the site is served
+# by Pages alone again, unchanged.
+
+name = "theequation-agency-front-door"
+main = "../../src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = false
+
+[vars]
+ORIGIN_URL = "same-host"
+# An older iPhone (iOS 15 and below) sends no sec-fetch-* headers and lands in
+# "unknown". On this site a person must never see JSON, so "unknown" gets the site.
+UNKNOWN_SERVES = "site"
+SITE_NAME = "The Equation Agency"
+SITE_DESCRIPTION = "Diseño web, SEO técnico, CRM, automatización e IA para empresas, agencias y equipos de marketing en Latinoamérica."
+SITE_LANGUAGE = "es-419"
+CONTACT_EMAIL = "hello@theequation.agency"
+CONTACT_URL = "https://theequation.agency/contacto"
+BOOKING_URL = "https://cal.com/the-equation-agency-llc/strategy-call"
+LOG_RETENTION_DAYS = "30"
+# No MCP server on this site yet. Set MCP_SERVER_URL once one is deployed.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "theequation-agency-front-door"
+database_id = "REPLACE_WITH_ID_FROM_WRANGLER_D1_CREATE"
+migrations_dir = "../../migrations"
+
+[[routes]]
+pattern = "theequation.agency/*"
+zone_name = "theequation.agency"
+
+# Daily, 04:23 UTC: delete request_log rows older than LOG_RETENTION_DAYS.
+# A Cloudflare cron trigger, not a GitHub Action.
+[triggers]
+crons = ["23 4 * * *"]

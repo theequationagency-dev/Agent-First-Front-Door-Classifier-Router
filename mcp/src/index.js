@@ -25,6 +25,7 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 
 import { createMcpServer } from "./tools.js";
+import { mcpToolNames } from "../../src/payload.js";
 import { recordIncident } from "../../src/observability.js";
 
 const MCP_PATH = "/mcp";
@@ -44,7 +45,7 @@ export default {
         server: env?.SERVER_NAME || "agent-front-door",
         transport: "streamable-http",
         endpoint: new URL(MCP_PATH, url.origin).toString(),
-        tools: ["get_services", "check_availability", "book_consult"],
+        tools: mcpToolNames(env),
       });
     }
 

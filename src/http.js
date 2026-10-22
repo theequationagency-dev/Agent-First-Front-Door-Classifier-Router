@@ -19,6 +19,10 @@ export function json(body, { status = 200, headers = {}, cache = "no-store" } = 
       // Agents running inside a browser (extensions, web-based tools) need
       // this to read the payload at all.
       "access-control-allow-origin": "*",
+      // The payload answers the same URL as a page. A search engine must
+      // never index it in place of the page (search engines get the site
+      // anyway; this covers anyone who fetches a JSON URL directly).
+      "x-robots-tag": "noindex",
       ...headers,
     },
   });

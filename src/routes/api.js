@@ -11,6 +11,7 @@ import { listActiveServices, listOpenSlots, createBooking, BookingError, DbError
 import { recordIncident } from "../observability.js";
 import { validateBookingInput } from "../validate.js";
 import { bookingSourceFor } from "../classifier.js";
+import { externalBookingUrl } from "../payload.js";
 
 const BOOKING_ERROR_STATUS = { slot_not_found: 404, slot_taken: 409 };
 
@@ -30,6 +31,16 @@ export async function handleApi(request, env, classification) {
       const limit = intParam(url.searchParams.get("limit"), { fallback: 100, min: 1, max: 500 });
       const services = await listActiveServices(env, { limit });
       return json({ services, count: services.length });
+    }
+
+    // External booking: the slot and booking endpoints are switched off, and
+    // say where to book instead. Nothing reaches the bookings table.
+    const booking = externalBookingUrl(env);
+    if (booking && (path === "/api/availability" || path === "/api/book")) {
+      return jsonError(404, "booking_external", "Booking on this site happens on a booking page.", {
+        booking_url: booking,
+        next_action: `Send the person to ${booking} to pick a time.`,
+      });
     }
 
     if (path === "/api/availability") {

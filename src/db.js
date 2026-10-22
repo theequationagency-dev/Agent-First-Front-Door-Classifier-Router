@@ -53,9 +53,12 @@ export function shapeService(row) {
     id: row.id,
     name: row.name,
     description: row.description,
+    url: row.url ?? null,
     price: {
       amount_cents: row.price_cents,
-      currency: row.currency || "USD",
+      // No price means no currency either: "USD" next to a blank amount
+      // would read as a claim the site never made.
+      currency: row.price_cents == null ? row.currency || null : row.currency || "USD",
       display:
         row.price_cents == null
           ? null
@@ -98,7 +101,7 @@ export async function listActiveServices(env, { limit = 100 } = {}) {
   const { results } = await run(env, "listActiveServices", (db) =>
     db
       .prepare(
-        `SELECT id, name, description, price_cents, currency
+        `SELECT id, name, description, url, price_cents, currency
            FROM services
           WHERE active = 1
           ORDER BY price_cents IS NULL, price_cents ASC, id ASC
@@ -210,4 +213,26 @@ export async function createBooking(env, { slot_id, name, email, notes = null, s
   const booking = await getBooking(env, inserted.meta.last_row_id);
   const slot = await getSlot(env, slot_id);
   return { ...booking, slot: slot ? shapeSlot(slot) : null };
+}
+
+// ---------------------------------------------------------------------------
+// Retention
+// ---------------------------------------------------------------------------
+
+/**
+ * Deletes request_log rows created before `logCutoff` and incidents created
+ * before `incidentCutoff` (both unix seconds), in one batch. Returns the
+ * number of rows each statement removed.
+ */
+export async function deleteLogsBefore(env, { logCutoff, incidentCutoff }) {
+  const [log, inc] = await run(env, "deleteLogsBefore", (db) =>
+    db.batch([
+      db.prepare(`DELETE FROM request_log WHERE created_at < ?`).bind(logCutoff),
+      db.prepare(`DELETE FROM incidents WHERE created_at < ?`).bind(incidentCutoff),
+    ])
+  );
+  return {
+    request_log_deleted: log?.meta?.changes ?? 0,
+    incidents_deleted: inc?.meta?.changes ?? 0,
+  };
 }
